@@ -5,7 +5,7 @@ export default function ArtisanDashboard() {
       {/* ==================== WELCOME SECTION ==================== */}
       <div>
         <h1 className="text-4xl font-bold text-gray-900">
-          Welcome back, Raveena!
+          Welcome back, Ruby!
         </h1>
 
         <p className="mt-2 text-gray-600 max-w-3xl">
