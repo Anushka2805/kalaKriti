@@ -96,11 +96,9 @@ export default function StudioPage() {
         >
           {/* TREND ANALYZER */}
           <div className="bg-white p-6 rounded-xl shadow border">
-            <h2 className="text-lg font-bold text-emerald-700">
-              Trend Analyzer
-            </h2>
+            <h2 className="text-lg font-bold text-emerald-700">Trend Analyzer</h2>
 
-            <p className="text-sm mt-3 text-gray-700 font-semibold">
+            <p className="text-sm mt-3 font-semibold text-black">
               Dominant Colors:
             </p>
             <div className="flex gap-2 mt-2">
@@ -113,7 +111,7 @@ export default function StudioPage() {
               ))}
             </div>
 
-            <p className="text-sm mt-4 font-semibold">Trend Tags:</p>
+            <p className="text-sm mt-4 font-semibold text-black">Trend Tags:</p>
             <div className="flex flex-wrap gap-2 mt-1">
               {aiData?.tags?.map((tag: string, i: number) => (
                 <span
@@ -125,7 +123,7 @@ export default function StudioPage() {
               ))}
             </div>
 
-            <p className="mt-4 text-sm font-semibold">Demand Score:</p>
+            <p className="mt-4 text-sm font-semibold text-black">Demand Score:</p>
             <div className="w-full bg-gray-200 h-2 rounded-full mt-1">
               <div
                 className="bg-emerald-500 h-full rounded-full"
@@ -133,7 +131,7 @@ export default function StudioPage() {
               ></div>
             </div>
 
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-black mt-1 font-medium">
               Demand: {demand > 75 ? "High" : demand > 50 ? "Medium" : "Low"}
             </p>
           </div>
@@ -144,7 +142,7 @@ export default function StudioPage() {
               Design Recommendations
             </h2>
 
-            <ul className="list-disc ml-5 mt-4 text-gray-700 text-sm space-y-2">
+            <ul className="list-disc ml-5 mt-4 text-black text-sm space-y-2">
               {aiData?.recommendations?.map((r: string, i: number) => (
                 <li key={i}>{r}</li>
               ))}
@@ -153,22 +151,21 @@ export default function StudioPage() {
 
           {/* PRICING ADVISOR */}
           <div className="bg-white p-6 rounded-xl shadow border">
-            <h2 className="text-lg font-bold text-yellow-600">
-              Pricing Advisor
-            </h2>
+            <h2 className="text-lg font-bold text-yellow-600">Pricing Advisor</h2>
 
             {aiData?.pricing ? (
               <>
-                <p className="text-sm mt-4">
+                <p className="text-sm mt-4 text-black">
                   Minimum Price: <strong>₹{aiData.pricing.min}</strong>
                 </p>
-                <p className="text-sm">
+                <p className="text-sm text-black">
                   Fair Price: <strong>₹{aiData.pricing.fair}</strong>
                 </p>
-                <p className="text-sm">
+                <p className="text-sm text-black">
                   Market Range: <strong>{aiData.pricing.range}</strong>
                 </p>
-                <p className="text-xs mt-3 text-gray-600">
+
+                <p className="text-xs mt-3 text-black">
                   {aiData.pricing.reason}
                 </p>
               </>

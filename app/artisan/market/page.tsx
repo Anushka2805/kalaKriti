@@ -1,241 +1,238 @@
 "use client";
 
 import { useState } from "react";
-import { RiMagicFill } from "react-icons/ri";
-import { FiMic } from "react-icons/fi";
-import { FaInstagram, FaFacebookF, FaWhatsapp } from "react-icons/fa";
 
 export default function MarketAssistant() {
+  const [image, setImage] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
 
-    const [activeTab, setActiveTab] = useState<"desc" | "price" | "video">("desc");
+  const [captionData, setCaptionData] = useState<any>(null);
+  const [priceData, setPriceData] = useState<any>(null);
+  const [videoData, setVideoData] = useState<any>(null); // script
+  const [realVideo, setRealVideo] = useState<string | null>(null); // actual video URL
 
-    return (
-        <main className="p-10">
+  const [platform, setPlatform] = useState("Instagram");
+  const [story, setStory] = useState("");
+  const [description, setDescription] = useState("");
 
-            {/* PAGE TITLE */}
-            <h1 className="text-3xl font-bold text-gray-900">
-                Ai market Analyzer
-            </h1>
-            <p className="text-gray-600 mt-2 max-w-2xl">
-                Your creative partner for listing products and marketing.
-                Use a quick-start wizard or our individual tools below.
-            </p>
+  const [loadingVideo, setLoadingVideo] = useState(false);
 
+  // ---------------- IMAGE UPLOAD -------------------
 
-            {/* TOP WIZARD BLOCKS */}
-            <div className="grid md:grid-cols-2 gap-6 mt-8">
+  function onUpload(e: any) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
+  }
 
-                {/* Wizard 1 */}
-                <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-                    <div className="flex gap-3 items-start">
-                        <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100 text-blue-500 text-xl">
-                            <RiMagicFill />
-                        </div>
-                        <div>
-                            <h2 className="font-semibold text-gray-800 text-lg">
-                                AI Product Wizard
-                            </h2>
-                            <p className="text-sm text-gray-500 mt-1">
-                                Generate a full product listing from a single photo.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+  // ---------------- GENERATE POST -------------------
 
-                {/* Wizard 2 */}
-                <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-6 shadow-sm">
-                    <div className="flex gap-3 items-start">
-                        <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-yellow-100 text-yellow-600 text-xl">
-                            <FiMic />
-                        </div>
-                        <div>
-                            <h2 className="font-semibold text-gray-800 text-lg">
-                                AI Recording & Analysis
-                            </h2>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Describe your product with your voice to generate a full listing.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+  async function generatePost() {
+    const form = new FormData();
+    if (image) form.append("image", image);
+    form.append("platform", platform);
+    form.append("text", description);
 
-            </div>
+    const res = await fetch("/api/generate-post", {
+      method: "POST",
+      body: form
+    });
 
+    const data = await res.json();
+    setCaptionData(data);
+  }
 
-            {/* TOOL PANEL */}
-            <div className="grid md:grid-cols-2 gap-8 mt-10">
+  // ---------------- PRICE ADVISOR -------------------
 
-                {/* LEFT SIDE → Tabs + Tool Forms */}
-                <div className="bg-white border border-gray-100 rounded-xl p-8 shadow-sm">
+  async function generatePrice() {
+    const res = await fetch("/api/editable-price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description })
+    });
 
-                    {/* TABS */}
-                    <div className="flex gap-10 border-b pb-3">
+    const data = await res.json();
+    setPriceData(data);
+  }
 
-                        <button
-                            className={`pb-2 font-medium ${activeTab === "desc"
-                                ? "text-emerald-600 border-b-2 border-emerald-600"
-                                : "text-gray-500"
-                                }`}
-                            onClick={() => setActiveTab("desc")}
-                        >
-                            Description Generator
-                        </button>
+  // ---------------- VIDEO SCRIPT -------------------
 
-                        <button
-                            className={`pb-2 font-medium ${activeTab === "price"
-                                ? "text-emerald-600 border-b-2 border-emerald-600"
-                                : "text-gray-500"
-                                }`}
-                            onClick={() => setActiveTab("price")}
-                        >
-                            Price Advisor
-                        </button>
+  async function generateVideoScript() {
+    const form = new FormData();
+    if (image) form.append("image", image);
+    form.append("story", story);
 
-                        <button
-                            className={`pb-2 font-medium ${activeTab === "video"
-                                ? "text-emerald-600 border-b-2 border-emerald-600"
-                                : "text-gray-500"
-                                }`}
-                            onClick={() => setActiveTab("video")}
-                        >
-                            Video Ad Creator
-                        </button>
-                    </div>
+    const res = await fetch("/api/video-script", {
+      method: "POST",
+      body: form
+    });
 
+    const data = await res.json();
+    setVideoData(data);
+  }
 
-                    {/* TAB CONTENT */}
-                    <div className="mt-6">
+  // ---------------- REAL AI VIDEO (PIKA) -------------------
 
-                        {/* DESCRIPTION GENERATOR */}
-                        {activeTab === "desc" && (
-                            <>
-                                <p className="text-gray-700 font-medium">
-                                    Describe your product:
-                                </p>
+  async function generateRealVideo() {
+    if (!image) return alert("Upload an image first!");
 
-                                <div className="mt-3 relative">
-                                    <textarea
-                                        rows={4}
-                                        placeholder="e.g., 'blue pottery vase with floral design'"
-                                        className="w-full border border-gray-200 rounded-xl p-4 text-gray-700 focus:ring-2 focus:ring-emerald-500"
-                                    />
-                                    <FiMic className="absolute bottom-3 right-4 text-gray-500 text-xl cursor-pointer" />
-                                </div>
+    const form = new FormData();
+    form.append("image", image);
+    form.append("story", story);
 
-                                <button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-2 rounded-lg">
-                                    Generate Description
-                                </button>
-                            </>
-                        )}
+    setLoadingVideo(true);
 
+    const res = await fetch("/api/video-generate", {
+      method: "POST",
+      body: form
+    });
 
-                        {/* PRICE ADVISOR */}
-                        {activeTab === "price" && (
-                            <>
-                                <p className="text-gray-700 font-medium">
-                                    Describe your product to get a data-driven price suggestion from the AI based on real-time web search.
-                                </p>
+    const data = await res.json();
+    setRealVideo(data.video);
 
-                                <div className="mt-3 relative">
-                                    <textarea
-                                        rows={4}
-                                        placeholder="e.g., 'Hand-painted silk scarf, 2 meters long, with peacock design...'"
-                                        className="w-full border border-gray-200 rounded-xl p-4 text-gray-700 focus:ring-2 focus:ring-emerald-500"
-                                    />
-                                    <FiMic className="absolute bottom-3 right-4 text-gray-500 text-xl cursor-pointer" />
-                                </div>
+    setLoadingVideo(false);
+  }
 
-                                <button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-2 rounded-lg">
-                                    Get Price Idea
-                                </button>
-                            </>
-                        )}
+  // ---------------- UI -------------------
 
+  return (
+    <main className="p-10">
+      <h1 className="text-3xl font-bold text-gray-900">AI Market Assistant</h1>
+      <p className="text-gray-600 mt-2">Create captions, videos & pricing instantly.</p>
 
-                        {/* VIDEO AD CREATOR */}
-                        {activeTab === "video" && (
-                            <>
-                                <p className="text-gray-700 font-medium">
-                                    Describe your brand’s story or product, and the AI will generate a short promotional video.
-                                </p>
+      {/* Upload + Preview */}
+      <div className="mt-6 border p-6 rounded-xl bg-white">
+        <input type="file" onChange={onUpload} className="hidden" id="upload" />
 
-                                <div className="mt-3 relative">
-                                    <textarea
-                                        rows={4}
-                                        placeholder="e.g., 'A beautiful handwoven scarf, showing close-ups of the fabric and someone wearing it on a sunny day...'"
-                                        className="w-full border border-gray-200 rounded-xl p-4 text-gray-700 focus:ring-2 focus:ring-emerald-500"
-                                    />
-                                    <FiMic className="absolute bottom-3 right-4 text-gray-500 text-xl cursor-pointer" />
-                                </div>
+        <label htmlFor="upload" className="cursor-pointer text-gray-900 font-medium">
+          Upload Product Image
+        </label>
 
-                                <button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-2 rounded-lg">
-                                    Generate Video
-                                </button>
-                            </>
-                        )}
+        {preview && (
+          <img src={preview} className="w-48 mt-3 rounded shadow border" />
+        )}
+      </div>
 
-                    </div>
+      {/* Description */}
+      <div className="mt-6">
+        <textarea
+          className="border p-3 w-full rounded bg-white text-gray-900 placeholder:text-gray-600"
+          placeholder="Describe your product..."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
 
-                </div>
-                {/* RIGHT SIDE → Social Media Toolkit */}
-                <div className="bg-white border border-gray-100 rounded-xl p-8 shadow-sm">
+      {/* PLATFORM */}
+      <div className="flex gap-4 mt-3">
+        {["Instagram", "Facebook", "WhatsApp"].map((p) => (
+          <button
+            key={p}
+            className={`px-4 py-2 rounded border text-gray-900 ${
+              platform === p ? "bg-green-600 text-white" : "bg-white"
+            }`}
+            onClick={() => setPlatform(p)}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
 
-                    <h3 className="font-semibold text-gray-800 mb-6 text-lg">
-                        Social Media Toolkit
-                    </h3>
+      {/* Story for video generation */}
+      <div className="mt-4">
+        <textarea
+          className="border p-3 w-full rounded bg-white text-gray-900 placeholder:text-gray-600"
+          placeholder="Write a short story for the video script..."
+          value={story}
+          onChange={(e) => setStory(e.target.value)}
+        />
+      </div>
 
-                    {/* UPLOAD PHOTO */}
-                    <div>
-                        <label className="font-medium text-gray-700">
-                            1. Upload a Photo (Optional)
-                        </label>
+      {/* Buttons */}
+      <div className="flex gap-4 mt-6">
+        <button className="bg-green-600 text-white px-4 py-2 rounded" onClick={generatePost}>
+          Generate Caption
+        </button>
 
-                        <div className="w-full mt-3 border border-dashed border-gray-300 rounded-xl h-48 flex items-center justify-center text-gray-500 cursor-pointer">
-                            Click to upload image
-                        </div>
-                    </div>
+        <button className="bg-yellow-600 text-white px-4 py-2 rounded" onClick={generatePrice}>
+          Get Price
+        </button>
 
+        <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={generateVideoScript}>
+          Generate Video Script
+        </button>
 
-                    {/* PLATFORM SELECTION */}
-                    <div className="mt-8">
-                        <label className="font-medium text-gray-700">
-                            2. Choose Platform & Describe Post (Optional)
-                        </label>
+        <button className="bg-purple-600 text-white px-4 py-2 rounded" onClick={generateRealVideo}>
+          Generate Real Video
+        </button>
+      </div>
 
-                        <div className="mt-3 flex gap-3">
+      {/* OUTPUT: CAPTION */}
+      {captionData && (
+        <div className="mt-6 p-4 border rounded bg-white text-gray-900">
+          <h2 className="font-semibold">Caption</h2>
+          <p>{captionData.caption}</p>
 
-                            <button className="flex-1 border px-3 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 text-black">
-                                <FaInstagram className="text-pink-500 text-lg" />
-                                Instagram
-                            </button>
+          <h2 className="font-semibold mt-3">Hashtags</h2>
+          <p>{captionData.hashtags?.join(" ")}</p>
 
-                            <button className="flex-1 border px-3 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 text-black">
-                                <FaFacebookF className="text-blue-600 text-lg" />
-                                Facebook
-                            </button>
+          <h2 className="font-semibold mt-3">Promo Line</h2>
+          <p>{captionData.promo}</p>
+        </div>
+      )}
 
-                            <button className="flex-1 border px-3 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 text-black">
-                                <FaWhatsapp className="text-green-600 text-lg" />
-                                WhatsApp
-                            </button>
+      {/* OUTPUT: PRICE */}
+      {priceData && (
+        <div className="mt-6 p-4 border rounded bg-white text-gray-900">
+          <h2 className="font-semibold">Suggested Price</h2>
+          <p>₹{priceData.suggestedPrice}</p>
+          <p className="text-gray-600">{priceData.reason}</p>
+        </div>
+      )}
 
-                        </div>
+      {/* OUTPUT: SCRIPT */}
+      {videoData && (
+        <div className="mt-6 p-4 border rounded bg-white text-gray-900">
+          <h2 className="font-semibold">Video Script</h2>
+          <p>{videoData.script}</p>
 
-                        <textarea
-                            rows={3}
-                            placeholder="e.g., 'A post about my new collection...'"
-                            className="mt-3 w-full border border-gray-200 rounded-xl p-4 text-gray-700 focus:ring-2 focus:ring-emerald-500"
-                        />
-                    </div>
+          <h2 className="font-semibold mt-3">Overlays</h2>
+          <p>{videoData.overlays.join(", ")}</p>
 
+          <h2 className="font-semibold mt-3">Scenes</h2>
+          <pre className="bg-gray-100 p-2 text-sm rounded text-gray-900">
+            {JSON.stringify(videoData.scenes, null, 2)}
+          </pre>
+        </div>
+      )}
 
-                    <button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-2 rounded-lg w-full">
-                        Generate Post
-                    </button>
+      {/* OUTPUT: REAL VIDEO */}
+      {loadingVideo && (
+        <p className="mt-6 text-purple-600 font-semibold animate-pulse">
+          Generating AI video… Please wait 15–20 seconds.
+        </p>
+      )}
 
-                </div>
-            </div>
+      {realVideo && (
+        <div className="mt-6 p-4 border rounded bg-white text-gray-900">
+          <h2 className="font-semibold mb-2">Generated AI Video</h2>
 
-        </main>
-    );
+          <video
+            controls
+            className="w-80 rounded shadow"
+            src={realVideo}
+          />
+
+          <a
+            href={realVideo}
+            download
+            className="mt-3 inline-block text-blue-600 underline"
+          >
+            Download Video
+          </a>
+        </div>
+      )}
+    </main>
+  );
 }
