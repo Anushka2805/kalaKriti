@@ -29,15 +29,13 @@ type CustomRequest = {
 type Negotiation = {
   id: string;
   conversationId: string;
-  productName: string;
-  buyerName: string;
+  buyerName: string | null;
+  productName: string | null;
   offerAmount: number;
   counterAmount?: number | null;
   status: "PENDING" | "ACCEPTED" | "REJECTED";
   createdAt: string;
 };
-
-type RightTab = "CUSTOM" | "NEGOTIATION";
 
 async function api<T>(url: string, options?: RequestInit) {
   const res = await fetch(url, {
@@ -61,24 +59,28 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [role, setRole] = useState<"buyer" | "artisan">("buyer");
 
+  // Customization Requests
   const [customRequests, setCustomRequests] = useState<CustomRequest[]>([]);
   const [crTitle, setCrTitle] = useState("");
   const [crNote, setCrNote] = useState("");
   const [crImageUrl, setCrImageUrl] = useState("");
-
-  const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
-  const [negProduct, setNegProduct] = useState("");
-  const [negBuyerName, setNegBuyerName] = useState("You (buyer)");
-  const [negOffer, setNegOffer] = useState("");
-  const [counterDraft, setCounterDraft] = useState<Record<string, string>>({});
-
   const [loadingCR, setLoadingCR] = useState(false);
-  const [loadingNeg, setLoadingNeg] = useState(false);
-  const [rightTab, setRightTab] = useState<RightTab>("CUSTOM");
+
+  // Negotiations
+  const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
+  const [negLoading, setNegLoading] = useState(false);
+  const [negBuyerName, setNegBuyerName] = useState("");
+  const [negProductName, setNegProductName] = useState("");
+  const [negOfferAmount, setNegOfferAmount] = useState<string>("");
+  const [negCounterDraft, setNegCounterDraft] = useState<Record<string, string>>(
+    {}
+  );
+
+  const [rightTab, setRightTab] = useState<"custom" | "negotiation">("custom");
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // Load conversations once
+  // Load conversations
   useEffect(() => {
     (async () => {
       try {
@@ -95,7 +97,7 @@ export default function ChatPage() {
           setActiveId(list[0].id);
         }
       } catch (e) {
-        console.error("Error loading conversations", e);
+        console.error(e);
       }
     })();
   }, []);
@@ -159,15 +161,15 @@ export default function ChatPage() {
     let stopped = false;
     const loadNeg = async () => {
       try {
-        setLoadingNeg(true);
-        const data = await api<Negotiation[]>(
+        setNegLoading(true);
+        const list = await api<Negotiation[]>(
           `/api/negotiations?conversationId=${activeId}`
         );
-        if (!stopped) setNegotiations(data);
+        if (!stopped) setNegotiations(list);
       } catch (e) {
         console.error("Failed to load negotiations", e);
       } finally {
-        if (!stopped) setLoadingNeg(false);
+        if (!stopped) setNegLoading(false);
       }
     };
 
@@ -179,7 +181,7 @@ export default function ChatPage() {
     };
   }, [activeId]);
 
-  // Auto scroll chat
+  // Auto scroll chat to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
@@ -221,6 +223,7 @@ export default function ChatPage() {
     }
   };
 
+  // Customization create
   const handleCreateCustomRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeId || !crTitle.trim() || !crNote.trim()) return;
@@ -244,63 +247,20 @@ export default function ChatPage() {
     }
   };
 
-  const handleUpdateCRStatus = async (
+  const handleUpdateCRStatus = (
     id: string,
     status: CustomRequest["status"]
   ) => {
-    try {
-      const updated = await api<CustomRequest>("/api/custom-requests", {
-        method: "PATCH",
-        body: JSON.stringify({ id, status }),
-      });
-      setCustomRequests((prev) =>
-        prev.map((r) => (r.id === id ? updated : r))
-      );
-    } catch (e) {
-      console.error("Failed to update status", e);
-    }
-  };
-
-  const handleCreateNegotiation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeId || !negProduct.trim() || !negOffer.trim()) return;
-
-    const offerValue = Number(negOffer);
-    if (!offerValue || offerValue <= 0) return;
-
-    try {
-      const created = await api<Negotiation>("/api/negotiations", {
-        method: "POST",
-        body: JSON.stringify({
-          conversationId: activeId,
-          productName: negProduct.trim(),
-          buyerName: negBuyerName.trim() || "Buyer",
-          offerAmount: offerValue,
-        }),
-      });
-      setNegotiations((prev) => [created, ...prev]);
-      setNegProduct("");
-      setNegOffer("");
-    } catch (e) {
-      console.error("Failed to create negotiation", e);
-    }
-  };
-
-  const handleUpdateNegotiation = async (id: string, payload: {
-    status?: Negotiation["status"];
-    counterAmount?: number;
-  }) => {
-    try {
-      const updated = await api<Negotiation>("/api/negotiations", {
-        method: "PATCH",
-        body: JSON.stringify({ id, ...payload }),
-      });
-      setNegotiations((prev) =>
-        prev.map((n) => (n.id === id ? updated : n))
-      );
-    } catch (e) {
-      console.error("Failed to update negotiation", e);
-    }
+    api<CustomRequest>("/api/custom-requests", {
+      method: "PATCH",
+      body: JSON.stringify({ id, status }),
+    })
+      .then((updated) => {
+        setCustomRequests((prev) =>
+          prev.map((r) => (r.id === id ? updated : r))
+        );
+      })
+      .catch((e) => console.error("Failed to update request", e));
   };
 
   const crStatusLabel = (status: CustomRequest["status"]) => {
@@ -322,14 +282,7 @@ export default function ChatPage() {
     return "bg-gray-50 text-gray-600 border-gray-200";
   };
 
-  const negStatusClass = (status: Negotiation["status"]) => {
-    if (status === "ACCEPTED")
-      return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (status === "REJECTED")
-      return "bg-rose-50 text-rose-700 border-rose-200";
-    return "bg-gray-50 text-gray-600 border-gray-200";
-  };
-
+  // Negotiation helpers
   const negStatusLabel = (status: Negotiation["status"]) => {
     switch (status) {
       case "PENDING":
@@ -341,15 +294,85 @@ export default function ChatPage() {
     }
   };
 
+  const negStatusClass = (status: Negotiation["status"]) => {
+    if (status === "ACCEPTED")
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (status === "REJECTED")
+      return "bg-rose-50 text-rose-700 border-rose-200";
+    return "bg-gray-50 text-gray-600 border-gray-200";
+  };
+
+  const handleCreateNegotiation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeId || !negOfferAmount.trim()) return;
+
+    const offer = Number(negOfferAmount);
+    if (Number.isNaN(offer) || offer <= 0) return;
+
+    try {
+      const created = await api<Negotiation>("/api/negotiations", {
+        method: "POST",
+        body: JSON.stringify({
+          conversationId: activeId,
+          buyerName: negBuyerName.trim() || undefined,
+          productName: negProductName.trim() || undefined,
+          offerAmount: offer,
+        }),
+      });
+      setNegotiations((prev) => [created, ...prev]);
+      setNegBuyerName("");
+      setNegProductName("");
+      setNegOfferAmount("");
+    } catch (e) {
+      console.error("Failed to create negotiation", e);
+    }
+  };
+
+  const handleSetCounter = async (id: string) => {
+    const raw = negCounterDraft[id];
+    if (!raw) return;
+    const value = Number(raw);
+    if (Number.isNaN(value) || value <= 0) return;
+
+    try {
+      const updated = await api<Negotiation>("/api/negotiations", {
+        method: "PATCH",
+        body: JSON.stringify({ id, counterAmount: value, status: "PENDING" }),
+      });
+      setNegotiations((prev) =>
+        prev.map((n) => (n.id === id ? updated : n))
+      );
+    } catch (e) {
+      console.error("Failed to set counter", e);
+    }
+  };
+
+  const handleNegStatusChange = async (
+    id: string,
+    status: Negotiation["status"]
+  ) => {
+    try {
+      const updated = await api<Negotiation>("/api/negotiations", {
+        method: "PATCH",
+        body: JSON.stringify({ id, status }),
+      });
+      setNegotiations((prev) =>
+        prev.map((n) => (n.id === id ? updated : n))
+      );
+    } catch (e) {
+      console.error("Failed to update negotiation status", e);
+    }
+  };
+
   return (
-    <main className="max-w-7xl mx-auto px-4 py-4 h-screen">
+    <main className="max-w-7xl mx-auto px-4 py-4 h-screen text-black">
       <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="text-xl font-semibold text-emerald-700">
-            Chat, Customization & Negotiation
+            Chat · Customization · Negotiation
           </h1>
           <p className="text-xs text-gray-500">
-            All saved in a real database · no dummy data.
+            All interaction between buyer & artisan, saved in DB.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">
@@ -357,7 +380,7 @@ export default function ChatPage() {
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as "buyer" | "artisan")}
-            className="border border-gray-200 rounded-full px-2 py-1 text-xs"
+            className="border border-gray-200 rounded-full px-2 py-1 text-xs text-black bg-white"
           >
             <option value="buyer">Buyer</option>
             <option value="artisan">Artisan</option>
@@ -382,7 +405,7 @@ export default function ChatPage() {
                     : "border-gray-100 bg-gray-50 hover:bg-gray-100"
                 }`}
               >
-                <p className="font-medium text-gray-900 line-clamp-1">
+                <p className="font-medium text-black line-clamp-1">
                   {c.title}
                 </p>
                 <p className="text-[11px] text-gray-500">
@@ -398,7 +421,7 @@ export default function ChatPage() {
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div className="flex flex-col">
               <span className="text-xs text-gray-500">Chat</span>
-              <span className="text-sm font-semibold text-gray-900">
+              <span className="text-sm font-semibold text-black">
                 {activeConversation?.title ?? "Loading..."}
               </span>
             </div>
@@ -419,18 +442,20 @@ export default function ChatPage() {
                   className={`max-w-[75%] rounded-2xl px-3 py-2 text-xs ${
                     m.from === role
                       ? "bg-emerald-600 text-white rounded-br-sm"
-                      : "bg-white text-black border border-gray-100 rounded-bl-sm"
-
+                      : "bg-white text-black border border-gray-200 rounded-bl-sm"
                   }`}
                 >
-                  <p className="text-[10px] mb-0.5 text-black">
-
+                  <p
+                    className={`text-[10px] mb-0.5 ${
+                      m.from === role ? "text-emerald-100" : "text-gray-700"
+                    }`}
+                  >
                     {m.from === "buyer" ? "Buyer" : "Artisan"}
                   </p>
                   <p>{m.text}</p>
                   <p
                     className={`mt-1 text-[10px] ${
-                      m.from === role ? "text-emerald-100" : "text-gray-500"
+                      m.from === role ? "text-emerald-100" : "text-gray-600"
                     }`}
                   >
                     {new Date(m.createdAt).toLocaleTimeString([], {
@@ -450,8 +475,7 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
               placeholder="Type a message..."
-              className="flex-1 border border-gray-200 rounded-full px-3 py-1.5 text-xs text-black placeholder-black"
-
+              className="flex-1 border border-gray-200 rounded-full px-3 py-1.5 text-xs text-black placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
             <button
               onClick={sendMessage}
@@ -462,38 +486,42 @@ export default function ChatPage() {
           </div>
         </section>
 
-        {/* RIGHT: tabs: customization / negotiations */}
+        {/* RIGHT: tabs (Customization / Negotiation) */}
         <aside className="border border-gray-100 rounded-3xl bg-white shadow-sm flex flex-col">
           {/* Tabs */}
-          <div className="px-4 pt-3 pb-2 border-b flex items-center gap-2 text-xs">
+          <div className="px-4 pt-3 pb-2 border-b flex items-center gap-2">
             <button
-              type="button"
-              onClick={() => setRightTab("CUSTOM")}
-              className={`px-3 py-1.5 rounded-full border ${
-                rightTab === "CUSTOM"
+              className={`text-xs px-3 py-1.5 rounded-full border ${
+                rightTab === "custom"
                   ? "bg-emerald-600 text-white border-emerald-600"
-                  : "bg-gray-100 text-gray-700 border-gray-200"
+                  : "bg-gray-50 text-gray-700 border-gray-200"
               }`}
+              onClick={() => setRightTab("custom")}
             >
               Customization
             </button>
             <button
-              type="button"
-              onClick={() => setRightTab("NEGOTIATION")}
-              className={`px-3 py-1.5 rounded-full border ${
-                rightTab === "NEGOTIATION"
+              className={`text-xs px-3 py-1.5 rounded-full border ${
+                rightTab === "negotiation"
                   ? "bg-emerald-600 text-white border-emerald-600"
-                  : "bg-gray-100 text-gray-700 border-gray-200"
+                  : "bg-gray-50 text-gray-700 border-gray-200"
               }`}
+              onClick={() => setRightTab("negotiation")}
             >
               Negotiations
             </button>
           </div>
 
-          {rightTab === "CUSTOM" ? (
+          {rightTab === "custom" ? (
             <>
               {/* Customization form */}
               <div className="px-4 py-3 border-b">
+                <h2 className="text-sm font-semibold text-black mb-1">
+                  Customization requests
+                </h2>
+                <p className="text-[11px] text-gray-500 mb-2">
+                  Linked to this conversation
+                </p>
                 <form
                   onSubmit={handleCreateCustomRequest}
                   className="space-y-2 text-xs"
@@ -501,21 +529,21 @@ export default function ChatPage() {
                   <input
                     value={crTitle}
                     onChange={(e) => setCrTitle(e.target.value)}
-                    placeholder="Title (e.g. Diwali gift set)"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="Title (e.g. Diwali hamper)"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-black placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                   <textarea
                     value={crNote}
                     onChange={(e) => setCrNote(e.target.value)}
                     rows={3}
-                    placeholder="Describe colours, names, quantities, packaging, event date…"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="Describe colours, names, quantity, packaging, event date…"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-black placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                   <input
                     value={crImageUrl}
                     onChange={(e) => setCrImageUrl(e.target.value)}
                     placeholder="Reference image URL (optional)"
-                    className="w-full border border-black rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-[11px]"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-black placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-[11px]"
                   />
                   <div className="flex justify-end">
                     <button
@@ -552,7 +580,7 @@ export default function ChatPage() {
                       className="border border-gray-100 rounded-2xl bg-gray-50 px-3 py-2 space-y-1"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium text-gray-800 line-clamp-1">
+                        <p className="font-medium text-black line-clamp-1">
                           {r.title}
                         </p>
                         <span
@@ -564,7 +592,7 @@ export default function ChatPage() {
                           {crStatusLabel(r.status)}
                         </span>
                       </div>
-                      <p className="text-[11px] text-gray-600 line-clamp-3">
+                      <p className="text-[11px] text-gray-700 line-clamp-3">
                         {r.note}
                       </p>
                       {r.imageUrl && (
@@ -583,7 +611,7 @@ export default function ChatPage() {
                           onClick={() =>
                             handleUpdateCRStatus(r.id, "SENT")
                           }
-                          className="px-2 py-0.5 rounded-full border border-gray-200 text-[10px] text-gray-600 hover:bg-gray-100"
+                          className="px-2 py-0.5 rounded-full border border-gray-200 text-[10px] text-gray-700 hover:bg-gray-100"
                         >
                           Sent
                         </button>
@@ -613,57 +641,55 @@ export default function ChatPage() {
             </>
           ) : (
             <>
-              {/* Negotiation form */}
+              {/* Negotiations form */}
               <div className="px-4 py-3 border-b">
+                <h2 className="text-sm font-semibold text-black mb-1">
+                  Negotiations
+                </h2>
+                <p className="text-[11px] text-gray-500 mb-2">
+                  Buyer offers · Artisan counters · Status tracking
+                </p>
                 <form
                   onSubmit={handleCreateNegotiation}
                   className="space-y-2 text-xs"
                 >
-                  <p className="text-[11px] text-gray-600 mb-1">
-                    {role === "buyer"
-                      ? "Create a new offer to negotiate with the artisan."
-                      : "Review buyer’s offer and respond from below list."}
-                  </p>
                   <input
-                    value={negProduct}
-                    onChange={(e) => setNegProduct(e.target.value)}
-                    placeholder="Product name (e.g. Crochet dolls)"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={negBuyerName}
+                    onChange={(e) => setNegBuyerName(e.target.value)}
+                    placeholder="Buyer name (optional)"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-black placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
-                  {role === "buyer" && (
-                    <input
-                      value={negBuyerName}
-                      onChange={(e) => setNegBuyerName(e.target.value)}
-                      placeholder="Your name (buyer)"
-                      className="w-full border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-[11px]"
-                    />
-                  )}
                   <input
-                    value={negOffer}
-                    onChange={(e) => setNegOffer(e.target.value)}
-                    placeholder="Offer amount (₹)"
-                    type="number"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={negProductName}
+                    onChange={(e) => setNegProductName(e.target.value)}
+                    placeholder="Product / item (optional)"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-black placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <input
+                    value={negOfferAmount}
+                    onChange={(e) => setNegOfferAmount(e.target.value)}
+                    placeholder="Buyer offer amount (₹)"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-black placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                   <div className="flex justify-end">
                     <button
                       type="submit"
                       className="px-3 py-1.5 rounded-full bg-emerald-700 text-white text-[11px] font-medium hover:bg-emerald-800"
-                      disabled={!activeId || role !== "buyer"}
+                      disabled={!activeId}
                     >
-                      Create offer
+                      Create negotiation
                     </button>
                   </div>
                 </form>
               </div>
 
-              {/* Negotiation list */}
+              {/* Negotiations list */}
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 text-xs">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[11px] text-gray-600 font-medium">
-                    Offers & counter-offers
+                    Active negotiations
                   </span>
-                  {loadingNeg && (
+                  {negLoading && (
                     <span className="text-[10px] text-gray-400">
                       Refreshing…
                     </span>
@@ -680,9 +706,16 @@ export default function ChatPage() {
                       className="border border-gray-100 rounded-2xl bg-gray-50 px-3 py-2 space-y-1"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium text-gray-800 line-clamp-1">
-                          {n.productName}
-                        </p>
+                        <div className="space-y-0.5">
+                          <p className="font-medium text-black line-clamp-1">
+                            {n.productName || "Negotiation"}
+                          </p>
+                          {n.buyerName && (
+                            <p className="text-[11px] text-gray-600">
+                              Buyer: {n.buyerName}
+                            </p>
+                          )}
+                        </div>
                         <span
                           className={
                             "px-2 py-0.5 rounded-full border text-[10px] " +
@@ -692,16 +725,14 @@ export default function ChatPage() {
                           {negStatusLabel(n.status)}
                         </span>
                       </div>
-                      <p className="text-[11px] text-gray-600">
-                        Buyer: <span className="font-medium">{n.buyerName}</span>
-                      </p>
+
                       <p className="text-[11px] text-gray-700">
                         Offer:{" "}
                         <span className="font-semibold">
                           ₹{n.offerAmount.toLocaleString("en-IN")}
                         </span>
                       </p>
-                      {n.counterAmount != null && (
+                      {typeof n.counterAmount === "number" && (
                         <p className="text-[11px] text-gray-700">
                           Counter:{" "}
                           <span className="font-semibold">
@@ -709,71 +740,51 @@ export default function ChatPage() {
                           </span>
                         </p>
                       )}
-                      <p className="text-[10px] text-gray-400">
-                        {new Date(n.createdAt).toLocaleString()}
-                      </p>
 
-                      {/* Artisan controls */}
-                      <div className="flex items-center gap-2 justify-between pt-1">
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            placeholder="Counter ₹"
-                            className="w-24 border border-gray-900 rounded-xl px-2 py-1 text-[10px] text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
-
-                            value={counterDraft[n.id] ?? ""}
-                            onChange={(e) =>
-                              setCounterDraft((prev) => ({
-                                ...prev,
-                                [n.id]: e.target.value,
-                              }))
-                            }
-                            disabled={role !== "artisan"}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const raw = counterDraft[n.id];
-                              if (!raw) return;
-                              const value = Number(raw);
-                              if (!value || value <= 0) return;
-                              handleUpdateNegotiation(n.id, {
-                                counterAmount: value,
-                              });
-                            }}
-                            className="px-2 py-1 rounded-full border border-emerald-500 text-[10px] text-emerald-700 bg-white hover:bg-emerald-50"
-                            disabled={role !== "artisan"}
-                          >
-                            Set counter
-                          </button>
+                      {role === "artisan" && (
+                        <div className="mt-1 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <input
+                              value={negCounterDraft[n.id] ?? ""}
+                              onChange={(e) =>
+                                setNegCounterDraft((prev) => ({
+                                  ...prev,
+                                  [n.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Counter amount"
+                              className="w-24 border border-gray-200 rounded-xl px-2 py-1 text-[10px] text-black placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSetCounter(n.id)}
+                              className="px-2 py-1 rounded-full bg-white border border-emerald-500 text-[10px] text-emerald-700 hover:bg-emerald-50"
+                            >
+                              Set counter
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1 justify-end">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleNegStatusChange(n.id, "ACCEPTED")
+                              }
+                              className="px-2 py-1 rounded-full bg-emerald-600 text-white text-[10px] hover:bg-emerald-700"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleNegStatusChange(n.id, "REJECTED")
+                              }
+                              className="px-2 py-1 rounded-full bg-white border border-gray-300 text-[10px] text-gray-700 hover:bg-gray-100"
+                            >
+                              Reject
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleUpdateNegotiation(n.id, {
-                                status: "ACCEPTED",
-                              })
-                            }
-                            className="px-2 py-1 rounded-full bg-emerald-600 text-white text-[10px] hover:bg-emerald-700"
-                            disabled={role !== "artisan"}
-                          >
-                            Accept
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleUpdateNegotiation(n.id, {
-                                status: "REJECTED",
-                              })
-                            }
-                            className="px-2 py-1 rounded-full bg-white border border-gray-300 text-[10px] text-gray-700 hover:bg-gray-100"
-                            disabled={role !== "artisan"}
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   ))
                 )}
