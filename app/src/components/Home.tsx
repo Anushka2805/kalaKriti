@@ -84,7 +84,7 @@ export default function HomePage() {
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-gray-200 rounded-full" />
-                <div className="h-3 w-24 bg-gray-200 rounded" />
+                <div className="h-3 w-24 bg-gray-900 rounded" />
               </div>
               <motion.span
                 animate={{ opacity: [0.5, 1, 0.5] }}
